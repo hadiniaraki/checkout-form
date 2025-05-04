@@ -1,0 +1,44 @@
+/* CSS برای مخفی کردن المان‌ها */
+.hidden-field {
+    display: none !important;
+}
+
+/* CSS برای استایل فیلد نوع کاربر (Radio) و قرار دادن در یک خط */
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container {
+    display: flex; /* استفاده از فلکس باکس برای چیدمان المان‌های داخلی */
+    align-items: center; /* هم‌راستا کردن عمودی المان‌ها */
+    /* حذف مارجین پیش‌فرض پایین که معمولاً توسط .form-row اضافه می‌شود */
+    margin-bottom: 0 !important;
+    padding-bottom: 8px; /* اضافه کردن کمی پدینگ پایین برای فاصله با فیلد بعدی */
+}
+
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container label {
+    flex-shrink: 0; /* جلوگیری از کوچک شدن لیبل */
+    margin-inline-end: 10px; /* اضافه کردن فاصله بعد از لیبل (پشتیبانی از RTL/LTR) */
+    margin-bottom: 0; /* حذف مارجین پایین لیبل */
+    padding-bottom: 0; /* حذف پدینگ پایین لیبل */
+}
+
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper {
+    display: flex; /* استفاده از فلکس باکس برای چیدمان دکمه‌های رادیویی */
+    align-items: center; /* هم‌راستا کردن عمودی دکمه‌ها */
+    gap: 15px; /* اضافه کردن فاصله بین دکمه‌های رادیویی (مرورگرهای جدید) */
+    flex-grow: 1; /* اجازه رشد به این قسمت برای پر کردن فضای باقی‌مانده */
+}
+
+/* fallback برای مرورگرهای قدیمی‌تر که gap را پشتیبانی نمی‌کنند */
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label {
+     margin-inline-end: 15px; /* اضافه کردن فاصله بین لیبل هر دکمه رادیویی */
+     margin-bottom: 0; /* اطمینان از عدم وجود مارجین پایین */
+}
+
+/* اطمینان از اینکه input های رادیویی و لیبل هایشان هم‌راستا هستند */
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label input[type="radio"] {
+     margin-inline-end: 5px; /* فاصله بین دکمه رادیو و متن کنارش */
+     margin-bottom: 0; /* اطمینان از عدم وجود مارجین پایین */
+}
+
+/* CSS برای مخفی کردن ستاره‌های اجباری اضافی کنار هر گزینه رادیویی */
+.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label .required {
+    display: none !important; /* مخفی کردن المان ستاره اجباری داخل wrapper و لیبل گزینه‌های رادیویی */
+}
