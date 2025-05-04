@@ -138,26 +138,7 @@ function customize_checkout_fields_by_user_type( $fields ) {
 }
 
 
-// --- 2. Add CSS for Hiding and Styling ---
-// Add this CSS to your theme's style.css or Customizer > Additional CSS
-/*
-.hidden-field {
-    display: none !important;
-}
-
-// CSS for user_type radio layout (from previous answer)
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container { display: flex; align-items: center; margin-bottom: 0 !important; padding-bottom: 8px; }
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container label { flex-shrink: 0; margin-inline-end: 10px; margin-bottom: 0; padding-bottom: 0; }
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper { display: flex; align-items: center; gap: 15px; flex-grow: 1; }
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label { margin-inline-end: 15px; margin-bottom: 0; } // fallback for gap
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label input[type="radio"] { margin-inline-end: 5px; margin-bottom: 0; }
-
-// CSS to hide extra required asterisks on user_type radio options (from previous answer)
-.woocommerce-checkout #billing_user_type_field.user-type-radio-container .woocommerce-input-wrapper label .required { display: none !important; }
-*/
-
-
-// --- 3. Add JavaScript for Dynamic Toggle ---
+// --- 2. Add JavaScript for Dynamic Toggle ---
 add_action( 'wp_footer', 'checkout_user_type_conditional_fields_script' ); // Or woocommerce_after_checkout_form
 
 function checkout_user_type_conditional_fields_script() {
@@ -261,7 +242,7 @@ function checkout_user_type_conditional_fields_script() {
 }
 
 
-// --- 4. Server-Side Validation ---
+// --- 3. Server-Side Validation ---
 add_action('woocommerce_checkout_process', 'validate_conditional_checkout_fields');
 
 function validate_conditional_checkout_fields() {
@@ -305,7 +286,7 @@ function validate_conditional_checkout_fields() {
 }
 
 
-// --- 5. Save Custom Fields to Order Meta ---
+// --- 4. Save Custom Fields to Order Meta ---
 add_action('woocommerce_checkout_update_order_meta', 'save_custom_checkout_fields_to_order_meta');
 
 function save_custom_checkout_fields_to_order_meta( $order_id ) {
@@ -354,7 +335,7 @@ function save_custom_checkout_fields_to_order_meta( $order_id ) {
 }
 
 
-// --- 6. Save Custom Fields to User Meta (using ACF update_field) ---
+// --- 5. Save Custom Fields to User Meta (using ACF update_field) ---
 // This saves user_type and the ACF Corporate fields to the user's profile
 add_action('woocommerce_checkout_order_processed', 'save_custom_checkout_fields_to_user_meta', 10, 3);
 
@@ -413,7 +394,7 @@ function save_custom_checkout_fields_to_user_meta( $order_id, $posted_data, $ord
 }
 
 
-// --- 7. Display Custom Fields on Admin Order Edit Page ---
+// --- 6. Display Custom Fields on Admin Order Edit Page ---
 add_action( 'woocommerce_admin_order_data_after_billing_address', 'display_custom_fields_on_admin_order_page', 10, 1 );
 
 function display_custom_fields_on_admin_order_page( $order ) {
