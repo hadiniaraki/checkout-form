@@ -1,4 +1,4 @@
-<?php
+
 /**
  * Customize WooCommerce Checkout and Account Edit Fields based on User Type (Individual/Corporate).
  * Adds user_type radio field, hides/shows/validates other fields dynamically.
@@ -696,10 +696,22 @@ function display_custom_fields_on_admin_order_page($order) {
         echo '</p>';
     }
 
+    // نمایش نام کاربری به‌عنوان شماره موبایل
+    $user_id = $order->get_customer_id();
+    if ($user_id) {
+        $user_data = get_userdata($user_id);
+        $username = $user_data ? $user_data->user_login : '';
+        if (!empty($username)) {
+            echo '<p class="form-field form-field-wide">';
+            echo '<strong>' . __('شماره موبایل', 'your-text-domain') . ':</strong> ' . esc_html($username);
+            echo '</p>';
+        }
+    }
+
     $corporate_fields_to_display = array(
         '_co_national_id' => 'شناسه ملی',
         '_register_id'    => 'شناسه ثبت',
-        '_tel_com'        => 'شماره تلفن ثابت',
+        // '_tel_com' را حذف کردیم تا تلفن ثابت نمایش داده نشود
     );
 
     foreach ($corporate_fields_to_display as $meta_key => $label) {
