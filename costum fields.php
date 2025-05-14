@@ -9,8 +9,7 @@
  * - Validate co_national_id and billing_address_1 client-side in Checkout.
  * - Add filter by user_type in Admin Orders list.
  * - Highlight corporate orders with red font and add user_type column.
- * - Ensure fields are saved in wp_usermeta and order meta.
- * - Fix validation errors and improve code structure.
+ * - Pre-populate custom fields in Checkout from user meta and ACF.
  */
 
 // Ensure ACF and WooCommerce are active
@@ -20,17 +19,11 @@ if (!function_exists('acf_render_field') || !class_exists('WooCommerce')) {
 }
 
 // --- 1. Validate Company National ID ---
-/**
- * Validate Company National ID based on the provided algorithm.
- * @param string $co_national_id The 11-digit company national ID.
- * @return bool True if valid, false otherwise.
- */
 function validate_company_national_id($co_national_id) {
     if (!ctype_digit($co_national_id) || strlen($co_national_id) !== 11) {
         error_log('Invalid co_national_id format: ' . $co_national_id);
         return false;
     }
-
     $digits = array_map('intval', str_split($co_national_id));
     $weights = [29, 27, 23, 19, 17, 29, 27, 23, 19, 247];
     $total = 0;
@@ -44,7 +37,6 @@ function validate_company_national_id($co_national_id) {
     }
     $is_valid = $remainder === $digits[10];
     error_log('co_national_id: ' . $co_national_id . ', remainder: ' . $remainder . ', control_digit: ' . $digits[10] . ', valid: ' . ($is_valid ? 'true' : 'false'));
-
     return $is_valid;
 }
 
@@ -55,7 +47,6 @@ function customize_checkout_fields_by_user_type($fields) {
     $user_id = get_current_user_id();
     $user_type = get_user_meta($user_id, 'user_type', true) ?: 'individual';
 
-    // Add User Type Radio Field
     $fields['billing']['user_type'] = [
         'type'     => 'radio',
         'label'    => __('کاربر:', 'your-text-domain'),
@@ -69,7 +60,6 @@ function customize_checkout_fields_by_user_type($fields) {
         'priority' => 5,
     ];
 
-    // Hide Country Field and Set Default to Iran
     if (isset($fields['billing']['billing_country'])) {
         $fields['billing']['billing_country']['required'] = false;
         $fields['billing']['billing_country']['class'][] = 'hidden-field';
@@ -77,7 +67,6 @@ function customize_checkout_fields_by_user_type($fields) {
         $fields['billing']['billing_country']['priority'] = 200;
     }
 
-    // Manage State and City Fields
     if (isset($fields['billing']['billing_state'])) {
         $fields['billing']['billing_state']['priority'] = 50;
     }
@@ -85,7 +74,6 @@ function customize_checkout_fields_by_user_type($fields) {
         $fields['billing']['billing_city']['priority'] = 55;
     }
 
-    // Modify Standard Billing Fields
     if (isset($fields['billing']['billing_first_name'])) {
         $fields['billing']['billing_first_name']['priority'] = 10;
     }
@@ -93,17 +81,15 @@ function customize_checkout_fields_by_user_type($fields) {
         $fields['billing']['billing_last_name']['priority'] = 15;
     }
 
-    // National ID for Individual
     $national_id_key = 'billing_national_id';
     if (isset($fields['billing'][$national_id_key])) {
         $fields['billing'][$national_id_key]['label'] = __('کدملی', 'your-text-domain') . ' <span class="required">*</span>';
-        $fields['billing'][$national_id_key]['required'] = false; // Managed by JS
+        $fields['billing'][$national_id_key]['required'] = false;
         $fields['billing'][$national_id_key]['class'] = ['form-row-wide', 'hidden-field', 'conditional-field', 'individual-field'];
         $fields['billing'][$national_id_key]['priority'] = 20;
         $fields['billing'][$national_id_key]['default'] = get_user_meta($user_id, $national_id_key, true);
     }
 
-    // Company Name for Corporate
     if (isset($fields['billing']['billing_company'])) {
         $fields['billing']['billing_company']['required'] = false;
         $fields['billing']['billing_company']['class'] = ['form-row-wide', 'hidden-field', 'conditional-field', 'corporate-field'];
@@ -120,7 +106,6 @@ function customize_checkout_fields_by_user_type($fields) {
         ];
     }
 
-    // Phone
     if (isset($fields['billing']['billing_phone'])) {
         $fields['billing']['billing_phone']['label'] = __('تلفن', 'your-text-domain');
         $fields['billing']['billing_phone']['required'] = true;
@@ -128,12 +113,10 @@ function customize_checkout_fields_by_user_type($fields) {
         $fields['billing']['billing_phone']['priority'] = 40;
     }
 
-    // Address 1
     if (isset($fields['billing']['billing_address_1'])) {
         $fields['billing']['billing_address_1']['priority'] = 60;
     }
 
-    // Address 2, Postcode, Email
     if (isset($fields['billing']['billing_address_2'])) {
         $fields['billing']['billing_address_2']['priority'] = 70;
     }
@@ -149,7 +132,6 @@ function customize_checkout_fields_by_user_type($fields) {
         $fields['billing']['billing_email']['priority'] = 90;
     }
 
-    // ACF Fields for Corporate Users
     $fields['billing']['co_national_id'] = [
         'type'     => 'text',
         'label'    => __('شناسه ملی', 'your-text-domain'),
@@ -178,7 +160,36 @@ function customize_checkout_fields_by_user_type($fields) {
     return $fields;
 }
 
-// --- 3. Add Custom Fields to My Account Edit Page ---
+// --- 3. Pre-populate Custom Fields in Checkout ---
+add_filter('woocommerce_checkout_get_value', 'prepopulate_custom_checkout_fields', 10, 2);
+
+function prepopulate_custom_checkout_fields($value, $input) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return $value;
+    }
+
+    $field_map = [
+        'billing_national_id' => 'billing_national_id',
+        'billing_company'     => 'billing_company',
+        'co_national_id'      => 'co_national_id',
+        'register_id'         => 'register_id',
+        'tel_com'             => 'tel_com',
+    ];
+
+    if (isset($field_map[$input])) {
+        if (in_array($input, ['co_national_id', 'register_id', 'tel_com'])) {
+            $value = get_field($input, 'user_' . $user_id) ?: '';
+        } else {
+            $value = get_user_meta($user_id, $input, true) ?: '';
+        }
+        error_log('Prepopulating field ' . $input . ' for user ID ' . $user_id . ': ' . $value);
+    }
+
+    return $value;
+}
+
+// --- 4. Add Custom Fields to My Account Edit Page ---
 add_action('woocommerce_edit_account_form', 'add_custom_fields_to_edit_account_form', 1000);
 
 function add_custom_fields_to_edit_account_form() {
@@ -217,7 +228,7 @@ function add_custom_fields_to_edit_account_form() {
     <?php
 }
 
-// --- 4. Add JavaScript and CSS for Dynamic Toggle on Edit Account Page ---
+// --- 5. Add JavaScript and CSS for Dynamic Toggle on Edit Account Page ---
 add_action('wp_footer', 'edit_account_user_type_conditional_fields_script', 100);
 
 function edit_account_user_type_conditional_fields_script() {
@@ -265,12 +276,16 @@ function edit_account_user_type_conditional_fields_script() {
                 function toggleUserTypeFields(selectedUserType) {
                     console.log('Toggling fields for user type: ' + selectedUserType);
                     $('.conditional-field').addClass('hidden-field');
-                    $('.conditional-field input').prop('required', false).val('').closest('.form-row').removeClass('validate-required');
+                    $('.conditional-field input').prop('required', false).closest('.form-row').removeClass('validate-required');
 
                     if (selectedUserType === 'individual') {
                         $billingNationalIdField.removeClass('hidden-field');
                         $billingNationalIdField.find('label').html('کدملی <span class="required">*</span>');
                         $billingNationalIdInput.prop('required', true).closest('.form-row').addClass('validate-required');
+                        $billingCompanyInput.val('');
+                        $coNationalIdInput.val('');
+                        $registerIdInput.val('');
+                        $telComInput.val('');
                     } else if (selectedUserType === 'corporate') {
                         $billingCompanyField.removeClass('hidden-field');
                         $billingCompanyField.find('label').html('نام شرکت <span class="required">*</span>');
@@ -284,6 +299,7 @@ function edit_account_user_type_conditional_fields_script() {
                         $telComField.removeClass('hidden-field');
                         $telComField.find('label').html('شماره تلفن ثابت <span class="optional">(اختیاری)</span>');
                         $telComInput.prop('required', false);
+                        $billingNationalIdInput.val('');
                     }
                 }
 
@@ -324,7 +340,7 @@ function edit_account_user_type_conditional_fields_script() {
     <?php
 }
 
-// --- 5. Validate Custom Fields on Edit Account Page ---
+// --- 6. Validate Custom Fields on Edit Account Page ---
 add_action('woocommerce_save_account_details_errors', 'validate_custom_fields_on_edit_account', 10, 2);
 
 function validate_custom_fields_on_edit_account($errors, $user) {
@@ -353,7 +369,7 @@ function validate_custom_fields_on_edit_account($errors, $user) {
     error_log('Validation errors: ' . print_r($errors->get_error_messages(), true));
 }
 
-// --- 6. Save Custom Fields on Edit Account Page ---
+// --- 7. Save Custom Fields on Edit Account Page ---
 add_action('woocommerce_save_account_details', 'save_custom_fields_on_edit_account', 10, 1);
 
 function save_custom_fields_on_edit_account($user_id) {
@@ -393,13 +409,20 @@ function save_custom_fields_on_edit_account($user_id) {
     }
 }
 
-// --- 7. Checkout Fields JavaScript ---
+// --- 8. Checkout Fields JavaScript ---
 add_action('wp_footer', 'checkout_user_type_conditional_fields_script');
 
 function checkout_user_type_conditional_fields_script() {
     if (!is_checkout() || is_wc_endpoint_url()) {
         return;
     }
+    $user_id = get_current_user_id();
+    $user_type = get_user_meta($user_id, 'user_type', true) ?: 'individual';
+    $billing_national_id = get_user_meta($user_id, 'billing_national_id', true) ?: '';
+    $billing_company = get_user_meta($user_id, 'billing_company', true) ?: '';
+    $co_national_id = get_field('co_national_id', 'user_' . $user_id) ?: '';
+    $register_id = get_field('register_id', 'user_' . $user_id) ?: '';
+    $tel_com = get_field('tel_com', 'user_' . $user_id) ?: '';
     ?>
     <script type="text/javascript">
         (function($) {
@@ -418,6 +441,17 @@ function checkout_user_type_conditional_fields_script() {
                 var $telComInput = $('#tel_com');
                 var $billingAddress1Field = $('#billing_address_1_field');
                 var $billingAddress1Input = $('#billing_address_1');
+
+                // Pre-populate fields
+                var userType = '<?php echo esc_js($user_type); ?>';
+                var fieldValues = {
+                    billing_national_id: '<?php echo esc_js($billing_national_id); ?>',
+                    billing_company: '<?php echo esc_js($billing_company); ?>',
+                    co_national_id: '<?php echo esc_js($co_national_id); ?>',
+                    register_id: '<?php echo esc_js($register_id); ?>',
+                    tel_com: '<?php echo esc_js($tel_com); ?>'
+                };
+                console.log('Pre-populated field values: ', fieldValues);
 
                 function validateCompanyNationalId(co_national_id) {
                     console.log('Validating co_national_id: ' + co_national_id);
@@ -450,25 +484,30 @@ function checkout_user_type_conditional_fields_script() {
                 function toggleUserTypeFields(selectedUserType) {
                     console.log('Toggling checkout fields for user type: ' + selectedUserType);
                     $('.conditional-field').addClass('hidden-field');
-                    $('.conditional-field input').prop('required', false).val('').closest('.form-row').removeClass('validate-required');
+                    $('.conditional-field input').prop('required', false).closest('.form-row').removeClass('validate-required');
 
                     if (selectedUserType === 'individual') {
                         $billingNationalIdField.removeClass('hidden-field');
                         $billingNationalIdField.find('label').html('کدملی <span class="required">*</span>');
-                        $billingNationalIdInput.prop('required', true).closest('.form-row').addClass('validate-required');
+                        $billingNationalIdInput.prop('required', true).closest('.form-row').addClass('validate-required').val(fieldValues.billing_national_id);
+                        $billingCompanyInput.val('');
+                        $coNationalIdInput.val('');
+                        $registerIdInput.val('');
+                        $telComInput.val('');
                     } else if (selectedUserType === 'corporate') {
                         $billingCompanyField.removeClass('hidden-field');
                         $billingCompanyField.find('label').html('نام شرکت <span class="required">*</span>');
-                        $billingCompanyInput.prop('required', true).closest('.form-row').addClass('validate-required');
+                        $billingCompanyInput.prop('required', true).closest('.form-row').addClass('validate-required').val(fieldValues.billing_company);
                         $coNationalIdField.removeClass('hidden-field');
                         $coNationalIdField.find('label').html('شناسه ملی <span class="required">*</span>');
-                        $coNationalIdInput.prop('required', true).closest('.form-row').addClass('validate-required');
+                        $coNationalIdInput.prop('required', true).closest('.form-row').addClass('validate-required').val(fieldValues.co_national_id);
                         $registerIdField.removeClass('hidden-field');
                         $registerIdField.find('label').html('شناسه ثبت <span class="required">*</span>');
-                        $registerIdInput.prop('required', true).closest('.form-row').addClass('validate-required');
+                        $registerIdInput.prop('required', true).closest('.form-row').addClass('validate-required').val(fieldValues.register_id);
                         $telComField.removeClass('hidden-field');
                         $telComField.find('label').html('شماره تلفن ثابت <span class="optional">(اختیاری)</span>');
-                        $telComInput.prop('required', false);
+                        $telComInput.prop('required', false).val(fieldValues.tel_com);
+                        $billingNationalIdInput.val('');
                     }
                     $(document.body).trigger('updated_checkout');
                 }
@@ -508,7 +547,7 @@ function checkout_user_type_conditional_fields_script() {
                     }
                 });
 
-                var initialUserType = $('input[name="user_type"]:checked').val() || 'individual';
+                var initialUserType = $('input[name="user_type"]:checked').val() || userType;
                 console.log('Initial checkout user type: ' + initialUserType);
                 toggleUserTypeFields(initialUserType);
             });
@@ -517,7 +556,7 @@ function checkout_user_type_conditional_fields_script() {
     <?php
 }
 
-// --- 8. Server-Side Validation for Checkout ---
+// --- 9. Server-Side Validation for Checkout ---
 add_action('woocommerce_checkout_process', 'validate_conditional_checkout_fields');
 
 function validate_conditional_checkout_fields() {
@@ -547,7 +586,7 @@ function validate_conditional_checkout_fields() {
     error_log('Checkout validation for user type: ' . $selected_user_type);
 }
 
-// --- 9. Save Custom Fields to Order Meta ---
+// --- 10. Save Custom Fields to Order Meta ---
 add_action('woocommerce_checkout_update_order_meta', 'save_custom_checkout_fields_to_order_meta');
 
 function save_custom_checkout_fields_to_order_meta($order_id) {
@@ -576,7 +615,7 @@ function save_custom_checkout_fields_to_order_meta($order_id) {
     }
 }
 
-// --- 10. Save Custom Fields to User Meta ---
+// --- 11. Save Custom Fields to User Meta ---
 add_action('woocommerce_checkout_order_processed', 'save_custom_checkout_fields_to_user_meta', 10, 3);
 
 function save_custom_checkout_fields_to_user_meta($order_id, $posted_data, $order) {
@@ -618,7 +657,7 @@ function save_custom_checkout_fields_to_user_meta($order_id, $posted_data, $orde
     }
 }
 
-// --- 11. Display Custom Fields on Admin Order Edit Page ---
+// --- 12. Display Custom Fields on Admin Order Edit Page ---
 add_action('woocommerce_admin_order_data_after_billing_address', 'display_custom_fields_on_admin_order_page', 10, 1);
 
 function display_custom_fields_on_admin_order_page($order) {
@@ -671,7 +710,7 @@ function display_custom_fields_on_admin_order_page($order) {
     }
 }
 
-// --- 12. Add User Type Column to Orders Table ---
+// --- 13. Add User Type Column to Orders Table ---
 add_filter('manage_edit-shop_order_columns', 'add_user_type_column_to_orders', 20);
 
 function add_user_type_column_to_orders($columns) {
@@ -702,14 +741,13 @@ function display_user_type_in_orders_column($column, $post_id) {
     }
 }
 
-// --- 13. Add Filter by User Type in Orders Table ---
+// --- 14. Add Filter by User Type in Orders Table ---
 add_action('restrict_manage_posts', 'add_user_type_filter_to_orders', 10, 1);
 
 function add_user_type_filter_to_orders($post_type) {
     if ($post_type !== 'shop_order') {
         return;
     }
-
     $selected = isset($_GET['user_type_filter']) ? sanitize_text_field($_GET['user_type_filter']) : '';
     ?>
     <select name="user_type_filter">
@@ -735,7 +773,7 @@ function filter_orders_by_user_type($query) {
     }
 }
 
-// --- 14. Highlight Corporate Orders and Style User Type Column ---
+// --- 15. Highlight Corporate Orders and Style User Type Column ---
 add_filter('post_class', 'highlight_corporate_orders_in_admin', 10, 3);
 
 function highlight_corporate_orders_in_admin($classes, $class, $post_id) {
